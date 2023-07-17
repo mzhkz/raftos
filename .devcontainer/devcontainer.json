@@ -1,0 +1,17 @@
+{
+	"name": "Raft development environment",
+	"build": {
+		"dockerFile": "Dockerfile",
+		"args": {
+			"network": "host"
+		}
+	},
+	// ここで指定した拡張機能はcontainer内で実行するVSCodeでインストールされます。
+	// build時に他の拡張機能をインストールしておきたい場合は、
+	// その拡張機能のIdentifierをここに追記してください。
+	"extensions": [
+		"ms-vscode.cpptools",
+		"VisualStudioExptTeam.vscodeintellicode",
+		"ms-python.python"
+	]
+}

@@ -1,30 +1,20 @@
 import argparse
 import asyncio
-from datetime import datetime
 import random
 
 import raftos
 
 
 async def run(node_id):
-    # Dict-like object: data.update(), data['key'] etc
-    data = raftos.ReplicatedDict(name='data')
-
+    rand_number = raftos.Replicated(name='rand_number')
 
     while True:
         # We can also check if raftos.get_leader() == node_id
         await raftos.wait_until_leader(node_id)
-
         await asyncio.sleep(2)
 
         current_id = random.randint(1, 1000)
-        data_map = {
-            str(current_id): {
-                'created_at': datetime.now().strftime('%d/%m/%y %H:%M')
-            }
-        }
-
-        await data.update(data_map)
+        await rand_number.set(current_id)
 
 
 if __name__ == '__main__':
@@ -33,7 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--cluster')
     args = parser.parse_args()
 
-    cluster = ['127.0.0.1:{}'.format(port) for port in args.cluster.split(',')]
+    cluster = ['127.0.0.1:{}'.format(port) for port in args.cluster.split(",")]
     node = '127.0.0.1:{}'.format(args.node)
 
     raftos.configure({

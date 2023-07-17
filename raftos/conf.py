@@ -1,4 +1,3 @@
-from .cryptors import default_cryptor
 from .serializers import MessagePackSerializer
 
 
@@ -23,9 +22,8 @@ class Configuration:
             'election_interval_spread': 3,
 
             # For UDP messages encryption
-            'secret_key': b'raftos sample secret key',
-            'salt': b'raftos sample salt',
-            'cryptor': default_cryptor,
+            # 'secret_key': b'raftos sample secret key',
+            # 'salt': b'raftos sample salt',
 
             # Election callbacks
             'on_leader': lambda: None,
@@ -41,9 +39,6 @@ class Configuration:
             self.step_down_interval,
             self.step_down_interval * self.election_interval_spread
         )
-
-        if isinstance(self.cryptor, type):
-            self.cryptor = self.cryptor(self)
 
 
 config = Configuration()

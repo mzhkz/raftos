@@ -1,6 +1,45 @@
 import os
+# import plyvel
 
 from .conf import config
+
+
+# class LevelDB:
+
+#     def __init__(self, filename):
+#         self.filename = filename.replace(':', '_') + '.ldb'
+#         print(self.filename)
+#         self.kvs = plyvel.DB(os.path.dirname(self.filename), create_if_missing=True)
+
+#         self.cache = {}
+
+#     def update(self, kwargs):
+#         for key, value in kwargs.items():
+#             self[key] = value
+
+#     def exists(self, name):
+#         try:
+#             self[name]
+#             return True
+#         except KeyError:
+#             return False
+        
+#     async def close(self):
+#         await self.kvs.close()
+        
+#     def __getitem__(self, name):
+#         if name not in self.cache:
+#             value = self.kvs.get(name).decode("utf-8")
+#             if value is None:
+#                 raise KeyError
+#             else:
+#                 self.cache[name] = value
+#         return value
+
+    
+#     def __setitem__(self, name, value):
+#         self.kvs.put(name.encode("utf-8"), value.encode("utf-8"))
+#         self.cache[name] = value
 
 
 class FileDict:
@@ -40,6 +79,7 @@ class FileDict:
                 self.cache = content
 
         return self.cache[name]
+    
 
     def __setitem__(self, name, value):
         try:

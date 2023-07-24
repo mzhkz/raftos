@@ -166,7 +166,7 @@ class Log:
 
         self.cache.append(entry)
         if not len(self) % self.UPDATE_CACHE_EVERY:
-            self.cache = self.read()
+            self.cache = self.read() # .logファイルから、コマンドログを読み込んでいる。
 
         return entry
 

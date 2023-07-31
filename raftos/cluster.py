@@ -185,7 +185,8 @@ class Leader(BaseState):
                 continue
 
 
-        # 自身が先行しすぎていたら？コミット済みのindexを戻す. match indexと何が違う？
+        # すでに合意を取ったcommit_indexよりも大きいindexに対して、合意が取れている場合は、commit_indexを更新する。
+        # 一度コミットしたものは覆さないので、条件はcommit_indexよりも大きいものにする。
         if commited_on_majority > self.log.commit_index:
             self.log.commit_index = commited_on_majority
 

@@ -37,8 +37,12 @@ def validate_commit_index(func):
 
     @functools.wraps(func)
     def wrapped(self, *args, **kwargs):
+        # 最後に適応したログから、フォロワー間でマジョリティがとれたログのインデックスまで、ログを適応する。
         for not_applied in range(self.log.last_applied + 1, self.log.commit_index + 1):
             self.state_machine.apply(self.log[not_applied]['command'])
+            # 適応したログのインデックスを更新する。match indexはリーダーと同期できている最新termのindexを指す。
+            # commit indexはフォロワー間でマジョリティがとれたログのインデックスを指す。
+            # match indexとcommit indexの違いは、match indexは個別のフォロワーがリーダーと同期できている最新termのindexを指すのに対し、commit indexはフォロワー間でマジョリティがとれたログのインデックスを指す。
             self.log.last_applied += 1
 
             try:
@@ -121,7 +125,8 @@ class Leader(BaseState):
             next_index = self.log.next_index[destination] # 各followerごとに状態を管理
             prev_index = next_index - 1
 
-            if self.log.last_log_index >= next_index: #自分のログよりも、Followerのログが遅れていたら
+            #自分のログよりも、Followerのログが遅れていたら、ログを送信する。Conflictしたログを持っていた場合は、line:151でログのインデックスを戻しているので、ここでリーダーのログに合わせる。
+            if self.log.last_log_index >= next_index:
                 data['entries'] = [self.log[next_index]]
             else: #そうでなければなにもしない。
                 data['entires'] = []
@@ -147,13 +152,16 @@ class Leader(BaseState):
                 del self.response_map[data['request_id']]
         
         if not data['success']:
-            self.log.next_index[sender_id] = max(self.log.next_index[sender_id] - 1, 1)
+            #一貫性チェックに失敗した場合は、前のログのとの一貫性がない、すなわちフォロワーがリーダーが送信したログを持っていないということなので、ログを一つ戻す。
+            self.log.next_index[sender_id] = max(self.log.next_index[sender_id] - 1, 1) 
 
         else:
+            # フォロワーによる一貫性チェックに成功した場合は、フォロワーが合意したログのインデックスを更新する。
             if data['last_log_index'] > self.log.match_index[sender_id]:
                 self.log.next_index[sender_id] = data['last_log_index'] + 1
-                self.log.match_index[sender_id] = data['last_log_index'] # match indexはリーダーと同期できている最新termのindex
+                self.log.match_index[sender_id] = data['last_log_index'] # match indexはリーダーと同期できている最新termのindexを指す。
 
+            # ここでフォロワーノード間でマジョリティがとれているか判断し、コミットする。またself.log.commit_indexを更新する。
             self.update_commit_index()
         
         # もしフォロワーのエントリーが最新ではなかった場合、ここでログを送信する。
@@ -163,10 +171,14 @@ class Leader(BaseState):
     
     def update_commit_index(self):
         commited_on_majority = 0
+        # フォロワーのログの中で、リーダーのログと一致しているものがあるか確認する。
+        # 一致しているものがあれば、そのindexをコミット済みのindexとする。
+        # 検索するインデックスのレンジは、コミット済みのindexよりも大きいものから、コミットしていない最新（キャッシュに入っている）のログまで。
         for index in range(self.log.commit_index + 1, self.log.last_log_index + 1):
             commited_count = len([1 for follower in self.log.match_index if self.log.match_index[follower] >= index])
 
             is_current_term = self.log[index]['term'] == self.storage.term
+            # indexについて、マジョリティがとれていて、かつ、現在のタームであれば、コミット済みのindexを更新する。
             if self.state.is_majority(commited_count + 1) and is_current_term:
                 commited_on_majority = index
             else:
@@ -184,6 +196,8 @@ class Leader(BaseState):
         entry = self.log.write(self.storage.term, command)
         self.loop.ensure_future(self.append_entries())
 
+        # append_entriesのレスポンスが返ってくるまで待つ. 
+        # append_entriesのレスポンスが返ってくると、apply_futureに値が入る。
         await self.apply_future
 
     def heatbeat(self):

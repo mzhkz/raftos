@@ -42,7 +42,6 @@ class Node:
 
         self.loop = loop
         self.state = State(self)
-        # self.requests = asyncio.Queue(loop=self.loop)
         self.requests = asyncio.Queue()
         self.__class__.nodes.append(self)
 
@@ -83,6 +82,7 @@ class Node:
             host, port = destination.split(':')
             destination = host, int(port)
 
+        # UDP protocolで送信するためには、キューに入れる必要がある。
         await self.requests.put({
             'data': data,
             'destination': destination

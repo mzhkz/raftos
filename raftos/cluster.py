@@ -7,6 +7,10 @@ from .exceptions import NotALeaderException
 from .storage import FileStorage, Log, StateMachine
 from .timer import Timer
 
+
+# コミットの適応はvalidate_commit_indexでやって、どこまでのログをステートマシン適応できるか、つまりどのログまでフォロワー間で合意がとれたか(self.log_commit_index)の検証と設定はupdate_commit_indexでやってるのか！
+# applied_indexは、合意がとれたcommit_indexに対して、どこまでステートマシンに適応したかどうかを示す。
+# log_commit_indexは、フォロワー間で合意がとれた（多数決勝負）ログの位置のみを示す。
 def validate_term(func):
 
 
@@ -46,6 +50,8 @@ def validate_commit_index(func):
             self.log.last_applied += 1
 
             try:
+                # apply_futureでexecute_commandとvalidate_commit_indexを分離している理由ってなんだ？
+                # execute_commandして、コミットするまでreturnをまつという意味. コミットに関して過半数の同意が見られたらvalidate_commit_indexでState machineにapplyできるからそれまでまってる（そうだった！今のログを完全に処理しきるまで次のログ処理できないRaftの糞な特性があったんだ）
                 self.apply_future.set_result(not_applied)
             except (asyncio.InvalidStateError, AttributeError):
                 pass
@@ -165,7 +171,8 @@ class Leader(BaseState):
             self.update_commit_index()
         
         # もしフォロワーのエントリーが最新ではなかった場合、ここでログを送信する。
-        if self.log.last_log_index >= self.log.next_index[sender_id]:
+        # Next Indexはappend_entriesのたびに更新されるので, フォロワーからの変身を受けてline: 162でNext indexを更新している。
+        if self.log.last_log_index >= self.log.next_index[sender_id]: 
             asyncio.ensure_future(self.append_entries(destination=sender_id), loop=self.loop)
 
     
@@ -197,8 +204,8 @@ class Leader(BaseState):
         entry = self.log.write(self.storage.term, command)
         self.loop.ensure_future(self.append_entries())
 
-        # append_entriesのレスポンスが返ってくるまで待つ. 
-        # append_entriesのレスポンスが返ってくると、apply_futureに値が入る。
+        # append_entriesのレスポンスが過半数以上のノードから返ってくるまで待つ. 
+        # なのでこの関数がリターンを返すときには、Storong consistencyが達成されている。
         await self.apply_future
 
     def heatbeat(self):
@@ -317,17 +324,20 @@ class Follower(BaseState):
 
         if is_append:
             for entry in data['entries']:
+                # last_log_indexが更新される。
                 self.log.write(entry['term'], entry['command'])
         
-        if self.log.commit_index < data['commit_index']:
-            self.log.commit_index = min(data['commit_index'], self.log.last_log_index)
+        if self.log.commit_index < data['commit_index']: # マジョリティをとれたログから遅れている。（復帰した場合など）
+            # commit indexがLeaderから受け取ったものよりも小さい場合、commit indexを更新する。
+            # その際、Leaderからのコミットインデックスから、自分のログの最後のインデックスの小さい方を選ぶ。
+            self.log.commit_index = min(data['commit_index'], self.log.last_log_index) 
         
         response = {
             'type': 'append_entries_response',
             'term': self.storage.term,
             'success': True,
 
-            'last_log_index': self.log.last_log_index,
+            'last_log_index': self.log.last_log_index, # この値がリーダーノードのmatch_indexに対応する。またこの値が最新line:169で、リーダーログよりも後れを取っていた場合は、リーダーから続けてAppendEntriesRPCが送られてくる。
             'request_id': data['request_id']
         }
 

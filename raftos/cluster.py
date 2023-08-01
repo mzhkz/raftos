@@ -330,7 +330,7 @@ class Follower(BaseState):
         if self.log.commit_index < data['commit_index']: # マジョリティをとれたログから遅れている。（復帰した場合など）
             # commit indexがLeaderから受け取ったものよりも小さい場合、commit indexを更新する。
             # その際、Leaderからのコミットインデックスから、自分のログの最後のインデックスの小さい方を選ぶ。
-            self.log.commit_index = min(data['commit_index'], self.log.last_log_index) 
+            self.log.commit_index = min(data['commit_index'], self.log.last_log_index) # コミットインデックスは、Leaderから送られてきたコミットインデックスと、自分のログの最後のインデックスの小さい方を選ぶ。なのでMajorityを取らないとステータスには書き込めない。
         
         response = {
             'type': 'append_entries_response',
@@ -470,6 +470,7 @@ class State:
     
     def _change_state(self, new_state):
         self.state.stop()
+        # loopやstorage, log, state machineはここで持っておくことで、Roleが変わり新しいインスタントを作成しても、同じものを使いまわせる。
         self.state = new_state(self)
         self.state.start()
 

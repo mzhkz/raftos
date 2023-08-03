@@ -98,7 +98,7 @@ class Leader(BaseState):
 
     def start(self):
         self.init_log()
-        self.heatbeat()
+        self.heatbeat() # ここでheatbeatを送信することで、リーダーが選出されたことをフォロワーに通知する。
         self.heatbeat_timer.start()
         self.stop_down_timer.start()
 
@@ -199,14 +199,15 @@ class Leader(BaseState):
 
     
     async def execute_command(self, command):
-        self.apply_future = self.loop.create_future()
+        self.apply_future = self.loop.create_future() # フォロワーからの合意を取るまで待つためのfuture
 
+        # logをとりあえず書き込む。この時点ではまだコミットされていない。
         entry = self.log.write(self.storage.term, command)
         self.loop.ensure_future(self.append_entries())
 
         # append_entriesのレスポンスが過半数以上のノードから返ってくるまで待つ. 
         # なのでこの関数がリターンを返すときには、Storong consistencyが達成されている。
-        await self.apply_future
+        await self.apply_future # validate_commit_indexでapply_futureがsetされるまで待つ。なおvalidate_commit_indexはappend_entriesのレスポンスを受け取った時に呼ばれる。
 
     def heatbeat(self):
         self.request_id += 1
